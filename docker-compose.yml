@@ -30,5 +30,5 @@ services:
       - POSTGRES_PASSWORD=admin
 
 volumes:
-  db-data:
   static-data:
+  db-data:
