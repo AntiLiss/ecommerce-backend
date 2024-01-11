@@ -3,6 +3,7 @@ from django.urls import reverse
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APIClient
+from user.serializers import UserSerializer
 from user.tests.test_models import create_user
 
 CREATE_USER_URL = reverse("authentication:register")
@@ -25,13 +26,15 @@ class AuthAPITests(TestCase):
             "name": "testname",
         }
         res = self.client.post(CREATE_USER_URL, payload)
+        user = get_user_model().objects.get(email=payload["email"])
+        user_serializer = UserSerializer(user)
 
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-        user = get_user_model().objects.get(email=payload["email"])
         self.assertTrue(user.check_password(payload["password"]))
         payload.pop("password")
         for k, v in payload.items():
             self.assertEqual(getattr(user, k), v)
+        self.assertEqual(res.data, user_serializer.data)
         # Make sure there is no password in response
         self.assertNotIn("password", res.data)
 
