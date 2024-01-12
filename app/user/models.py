@@ -62,7 +62,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     surname = models.CharField(max_length=100, blank=True)
     is_staff = models.BooleanField(default=False)
     profile_photo = models.ImageField(
-        upload_to=generate_user_image_path, blank=True, null=True
+        upload_to=generate_user_image_path,
+        blank=True,
+        null=True,
     )
     address = models.OneToOneField(
         to=Address,

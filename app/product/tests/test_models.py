@@ -1,6 +1,7 @@
+from unittest.mock import patch
 from decimal import Decimal
 from django.test import TestCase
-from product.models import Category, Product
+from product.models import Category, Product, generate_product_image_path
 
 
 def create_category(name="sample category"):
@@ -40,3 +41,12 @@ class ProductModelTests(TestCase):
         product = create_product(name=product_name, category=category)
 
         self.assertEqual(str(product), product_name)
+
+    @patch("product.models.uuid4")
+    def test_product_image_uuid(self, mock_uuid):
+        """Test generating product image path"""
+        sample_uuid = "sample-uuid"
+        mock_uuid.return_value = sample_uuid
+        image_path = generate_product_image_path(None, "example.jpg")
+
+        self.assertEqual(image_path, f"uploads/product/{sample_uuid}.jpg")
