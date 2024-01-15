@@ -14,8 +14,8 @@ def generate_product_image_path(instance, filename):
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
 
+    # Ensure name is unique in case-insensitive manner before saving
     def save(self, *args, **kwargs):
-        # Ensure name is unique in case-insensitive manner
         if Category.objects.filter(
             name__iexact=self.name,
         ):
@@ -34,13 +34,13 @@ class Property(models.Model):
     name = models.CharField(max_length=100)
     value = models.CharField(max_length=255)
 
+    # Ensure combination of fields are unique in case-insensitive
+    # manner before saving
     def save(self, *args, **kwargs):
-        # Ensure the pair of fields are unique
-        # Check entry duplication in case-insensitive manner
         if Property.objects.filter(
             name__iexact=self.name,
             value__iexact=self.value,
-        ).exists():
+        ):
             msg = f"Property with this Name ({self.name}) and Value ({self.value}) already exists!"
             raise ValueError(msg)
 

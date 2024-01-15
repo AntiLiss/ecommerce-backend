@@ -9,32 +9,31 @@ class CategorySerializer(serializers.ModelSerializer):
         read_only_fields = ["id"]
 
 
-# Use when dealing directly with "Property" resource
+# To use when dealing directly with "Property" resource
 class PropertySerializer(serializers.ModelSerializer):
     class Meta:
         model = Property
         fields = ["id", "name", "value"]
         read_only_fields = ["id"]
 
-    # Check for duplication error
+    # Check combination of name and value is unique
     def validate(self, attrs):
-        prop_exists = Property.objects.filter(
+        property = Property.objects.filter(
             name__iexact=attrs.get("name"),
             value__iexact=attrs.get("value"),
-        ).exists()
+        )
 
-        if prop_exists:
+        if property:
             msg = f"Property with this Name ({attrs["name"]}) and Value ({attrs["value"]}) already exists!"
             raise serializers.ValidationError(msg)
 
         return attrs
 
 
+# To use inside Product as nested serializer.
+# Skips duplication check cuz there's used get_or_create
 class NoValidationPropSerializer(PropertySerializer):
-    """Property serializer without validation for duplication"""
-
-    # Used when creating props through Product.
-    # Skips duplication check cuz there's used get_or_create
+    """Property serializer without validation of duplication"""
 
     # Override to remove validation
     def validate(self, attrs):
@@ -93,6 +92,7 @@ class ProductDetailSerializer(ProductSerializer):
 
         return product
 
+    # Modify update to update product with props
     def update(self, instance, validated_data):
         """Update product with props"""
         props = validated_data.pop("properties", None)

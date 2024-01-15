@@ -38,7 +38,7 @@ class CategoryViewSet(BaseViewSet):
     # Override deletion to return deleted item in response
     def destroy(self, request, pk):
         category = get_object_or_404(Category, pk=pk)
-        category_serializer = CategorySerializer(category)
+        category_serializer = self.get_serializer(category)
         data = category_serializer.data
         category.delete()
         return Response(data, status.HTTP_204_NO_CONTENT)
