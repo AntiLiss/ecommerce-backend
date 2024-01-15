@@ -1,17 +1,15 @@
 import os
 import tempfile
-from uuid import uuid4
 from decimal import Decimal
 from PIL import Image
-from unittest.mock import patch
 from django.test import TestCase
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.core.files import File
 from rest_framework import status
 from rest_framework.test import APIClient
-from .test_models import create_category
-from product.models import Product
+from .test_models import create_category, create_property
+from product.models import Product, Property
 from product.serializers import ProductSerializer, ProductDetailSerializer
 
 PRODUCT_LIST_URL = reverse("product:product-list")
@@ -68,8 +66,12 @@ class PublicProductAPITests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, product_serializer.data)
 
-    def test_no_edit_permission_error(self):
-        """Test only admins can create or edit products"""
+    def test_no_admin_permission_error(self):
+        """Test only admin can create or edit products"""
+        client = APIClient()
+        user = get_user_model().objects.create_user("test@example.com")
+        client.force_authenticate(user=user)
+
         payload = {
             "name": "testname",
             "description": "some desc",
@@ -77,16 +79,16 @@ class PublicProductAPITests(TestCase):
             "price": Decimal("100.99"),
             "stock": 100,
         }
-        res = self.client.post(PRODUCT_LIST_URL, payload)
+        res = client.post(PRODUCT_LIST_URL, payload)
 
-        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
-        # Make sure the product isn't created
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        # Ensure the product isn't created
         product_exists = Product.objects.filter(**payload).exists()
         self.assertFalse(product_exists)
 
 
 class PrivateProductAPITests(TestCase):
-    """Test authenticated admin tests"""
+    """Test authenticated admin requests"""
 
     def setUp(self):
         self.client = APIClient()
@@ -130,7 +132,7 @@ class PrivateProductAPITests(TestCase):
 
         product.refresh_from_db()
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        # Make sure original name didn't change
+        # Ensure original name didn't change
         self.assertEqual(product.name, original_name)
         for k, v in payload.items():
             self.assertEqual(getattr(product, k), v)
@@ -148,7 +150,7 @@ class PrivateProductAPITests(TestCase):
 
         product.refresh_from_db()
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
-        # Make sure the product fields didn't change
+        # Ensure the product fields didn't change
         for k, v in payload.items():
             self.assertNotEqual(getattr(product, k), v)
 
@@ -216,26 +218,138 @@ class PrivateProductAPITests(TestCase):
 
         product.refresh_from_db()
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        # Make sure there is no more image path
+        # Ensure there is no more image path
         with self.assertRaises(ValueError):
             os.path.exists(product.image.path)
 
     def test_create_product_with_new_property(self):
-        """Test creating product with creating new properties"""
-        pass
+        """Test create product with creating new properties"""
+        category = create_category()
+        payload = {
+            "name": "testname",
+            "price": Decimal("100.99"),
+            "stock": 30,
+            "category": category.id,
+            "properties": [
+                {"name": "color", "value": "white"},
+                {"name": "number of pockets", "value": "4"},
+            ],
+        }
+        res = self.client.post(PRODUCT_LIST_URL, payload, format="json")
+
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        product = Product.objects.get(id=res.data["id"])
+        product_serializer = ProductDetailSerializer(product)
+        # Ensure the product is returned with response
+        self.assertEqual(res.data, product_serializer.data)
+        # Ensure props are assigned to product
+        self.assertEqual(product.properties.count(), len(payload["properties"]))
+        for prop in payload["properties"]:
+            prop_obj = Property.objects.get(**prop)
+            self.assertIn(prop_obj, product.properties.all())
 
     def test_create_product_with_existing_property(self):
         """
-        Test creating product with already existing properties in db
+        Test creating product with already existing property
 
-        It must assign existing property without creating new one
+        It must assign existing property instead of creating it's duplicate
         """
-        pass
+        category = create_category()
+        existing_prop = create_property(name="fabric", value="silk")
+        payload = {
+            "name": "testname",
+            "price": Decimal("100.99"),
+            "stock": 30,
+            "category": category.id,
+            "properties": [
+                {"name": "FABRIC", "value": "SILK"},
+            ],
+        }
+        res = self.client.post(PRODUCT_LIST_URL, payload, format="json")
+
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        product = Product.objects.get(id=res.data["id"])
+        product_serializer = ProductDetailSerializer(product)
+        self.assertEqual(res.data, product_serializer.data)
+        self.assertEqual(product.properties.count(), 1)
+        self.assertIn(existing_prop, product.properties.all())
+        # # Assert no recreaction of existing tag
+        existing_prop_count = Property.objects.filter(
+            name=existing_prop.name,
+            value=existing_prop.value,
+        ).count()
+        self.assertEqual(existing_prop_count, 1)
 
     def test_create_new_properties_on_update(self):
         """Test create and assign new props when updating product"""
-        pass
+        category = create_category()
+        product = create_product(category=category)
+
+        url = get_product_detail_url(product.id)
+        payload = {
+            "properties": [{"name": "color", "value": "red"}],
+        }
+        res = self.client.patch(url, payload, format="json")
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        product_serializer = ProductDetailSerializer(product)
+        self.assertEqual(res.data, product_serializer.data)
+        self.assertEqual(product.properties.count(), len(payload["properties"]))
+        for prop in payload["properties"]:
+            prop_obj = Property.objects.get(**prop)
+            self.assertIn(prop_obj, product.properties.all())
 
     def test_assign_existing_props_on_update(self):
         """Test assign already existing props when updating product"""
-        pass
+        category = create_category()
+        product = create_product(category=category)
+        prop_color = create_property(name="color", value="black")
+
+        url = get_product_detail_url(product.id)
+        payload = {
+            "properties": [{"name": "color", "value": "black"}],
+        }
+        res = self.client.patch(url, payload, format="json")
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        product_serializer = ProductDetailSerializer(product)
+        self.assertEqual(res.data, product_serializer.data)
+        self.assertIn(prop_color, product.properties.all())
+        self.assertEqual(product.properties.count(), 1)
+        prop_color_count = Property.objects.filter(
+            name=prop_color.name,
+            value=prop_color.value,
+        ).count()
+        self.assertEqual(prop_color_count, 1)
+
+    def test_prop_name_duplication_error(self):
+        """Test product can't have more than one prop with the same name"""
+        category = create_category()
+        product = create_product(category=category)
+
+        payload = {
+            "properties": [
+                {"name": "cOLor", "value": "BlAck"},
+                {"name": "color", "value": "red"},
+            ]
+        }
+        url = get_product_detail_url(product.id)
+        res = self.client.patch(url, payload, format="json")
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_clear_product_props(self):
+        """Test removing product props (without deleting themselves)"""
+        category = create_category()
+        prop_color = create_property(name="color", value="black")
+        product = create_product(category=category)
+        product.properties.add(prop_color)
+
+        payload = {"properties": []}
+        url = get_product_detail_url(product.id)
+        res = self.client.patch(url, payload, format="json")
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        product_serializer = ProductDetailSerializer(product)
+        self.assertEqual(res.data, product_serializer.data)
+        self.assertEqual(product.properties.count(), 0)

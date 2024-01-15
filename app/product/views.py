@@ -11,8 +11,9 @@ from .serializers import (
     ProductDetailSerializer,
     ProductSerializer,
     ProductImageSerializer,
+    PropertySerializer,
 )
-from .models import Category, Product
+from .models import Category, Product, Property
 
 
 class BaseViewSet(viewsets.ModelViewSet):
@@ -24,7 +25,7 @@ class BaseViewSet(viewsets.ModelViewSet):
     # Permis only admins to create and edit
     def get_permissions(self):
         if self.action not in ["list", "retrieve"]:
-            return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
+            return [permissions.IsAdminUser()]
         return super().get_permissions()
 
 
@@ -57,15 +58,7 @@ class ProductViewSet(BaseViewSet):
             return ProductImageSerializer
         return super().get_serializer_class()
 
-    # Override deletion to return deleted item in response
-    def destroy(self, request, pk):
-        product = get_object_or_404(Product, pk=pk)
-        product_serializer = self.get_serializer(product)
-        data = product_serializer.data
-        product.delete()
-        return Response(data, status.HTTP_204_NO_CONTENT)
-
-    # Update specific product's image field
+    # Custom action to update specific product's image field
     @action(["post"], detail=True, url_name="upload-image")
     def upload_image(self, request, pk):
         """Upload image to specific product"""
@@ -77,3 +70,28 @@ class ProductViewSet(BaseViewSet):
         image_serializer.is_valid(raise_exception=True)
         image_serializer.save()
         return Response(image_serializer.data, status.HTTP_200_OK)
+
+    # Override deletion to return deleted item in response
+    def destroy(self, request, pk):
+        product = get_object_or_404(Product, pk=pk)
+        product_serializer = self.get_serializer(product)
+        data = product_serializer.data
+        product.delete()
+        return Response(data, status.HTTP_204_NO_CONTENT)
+
+
+class PropertyViewSet(viewsets.ModelViewSet):
+    """Manage product properties"""
+
+    permission_classes = [permissions.IsAdminUser]
+    authentication_classes = [TokenAuthentication]
+    serializer_class = PropertySerializer
+    queryset = Property.objects.all().order_by("id")
+
+    # Override deletion to return deleted item in response
+    def destroy(self, request, pk):
+        prop = get_object_or_404(Property, pk=pk)
+        prop_serializer = self.get_serializer(prop)
+        data = prop_serializer.data
+        prop.delete()
+        return Response(data, status.HTTP_204_NO_CONTENT)

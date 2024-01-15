@@ -35,7 +35,7 @@ class AuthAPITests(TestCase):
         for k, v in payload.items():
             self.assertEqual(getattr(user, k), v)
         self.assertEqual(res.data, user_serializer.data)
-        # Make sure there is no password in response
+        # Ensure there is no password in response
         self.assertNotIn("password", res.data)
 
     def test_email_duplication_error(self):

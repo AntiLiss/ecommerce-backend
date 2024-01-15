@@ -1,6 +1,7 @@
 import os
 from uuid import uuid4
 from django.db import models
+from django.core.validators import MinValueValidator
 
 
 def generate_product_image_path(instance, filename):
@@ -13,23 +14,62 @@ def generate_product_image_path(instance, filename):
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
 
+    def save(self, *args, **kwargs):
+        # Ensure name is unique in case-insensitive manner
+        if Category.objects.filter(
+            name__iexact=self.name,
+        ):
+            msg = f"Category with this Name ({self.name}) already exists!"
+            raise ValueError(msg)
+
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.name
+
+
+class Property(models.Model):
+    """Product property model"""
+
+    name = models.CharField(max_length=100)
+    value = models.CharField(max_length=255)
+
+    def save(self, *args, **kwargs):
+        # Ensure the pair of fields are unique
+        # Check entry duplication in case-insensitive manner
+        if Property.objects.filter(
+            name__iexact=self.name,
+            value__iexact=self.value,
+        ).exists():
+            msg = f"Property with this Name ({self.name}) and Value ({self.value}) already exists!"
+            raise ValueError(msg)
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.name} {self.value}"
 
 
 class Product(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     brand = models.CharField(max_length=100, blank=True)
-    price = models.DecimalField(max_digits=15, decimal_places=2)  # TODO make min=1
-    stock = models.IntegerField()  # TODO make min=0
+    price = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        validators=[MinValueValidator(1)],
+    )
+    stock = models.IntegerField(validators=[MinValueValidator(0)])
     image = models.ImageField(
         upload_to=generate_product_image_path,
         blank=True,
         null=True,
     )
     category = models.ForeignKey(to=Category, on_delete=models.CASCADE)
-    # properties = models.ManyToManyField()
+    properties = models.ManyToManyField(
+        to=Property,
+        blank=True,
+    )
 
     def __str__(self):
         return self.name

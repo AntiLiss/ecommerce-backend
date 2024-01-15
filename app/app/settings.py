@@ -43,7 +43,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "user",
     "authentication",
-    "product",
+    "product.apps.ProductConfig",
     "core",
 ]
 
