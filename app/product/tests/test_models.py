@@ -1,11 +1,13 @@
 from unittest.mock import patch
 from decimal import Decimal
 from django.test import TestCase
+from django.contrib.auth import get_user_model
 from product.models import (
     Category,
     Product,
     generate_product_image_path,
     Property,
+    Review,
 )
 
 
@@ -28,6 +30,15 @@ def create_product(category, **fields):
     }
     default_fields.update(**fields)
     return Product.objects.create(category=category, **default_fields)
+
+
+def create_review(user, product, **fields):
+    default_fields = {
+        "rating": 5,
+        "commentary": "sample commentary",
+    }
+    default_fields.update(**fields)
+    return Review.objects.create(user=user, product=product, **default_fields)
 
 
 class CategoryModelTests(TestCase):
@@ -61,7 +72,7 @@ class ProductModelTests(TestCase):
 
         self.assertEqual(image_path, f"uploads/product/{sample_uuid}.jpg")
 
-    def test_product_prop_name_duplication(self):
+    def test_no_product_prop_name_duplication(self):
         """Test product can't have more than one prop with the same name"""
         category = create_category()
         product = create_product(category=category)
@@ -73,6 +84,19 @@ class ProductModelTests(TestCase):
         # two props with the same name
         with self.assertRaises(ValueError):
             product.properties.add(color_red, color_blue)
+
+    # def test_rating_update_when_review_added(self):
+    #     """
+    #     Test product's rating is updated whenever review
+    #     for that created or edited
+    #     """
+    #     category = create_category()
+    #     product = create_product(category=category)
+
+    #     user = get_user_model().objects.create_user(email="test@example.com")
+    #     create_review(user, product, rating=3)
+
+    #     self.assertEqual(product.rating, 3)
 
 
 class PropertyModelTests(TestCase):
@@ -98,3 +122,24 @@ class PropertyModelTests(TestCase):
         with self.assertRaises(ValueError):
             create_property(name="Fabric", value="Cotton")
             create_property(name="FABRIC", value="COTTON")
+
+
+# class ReviewModelTests(TestCase):
+#     """Test Review model"""
+
+#     def setUp(self):
+#         category = create_category()
+#         self.product = create_product(category)
+#         self.user = get_user_model().objects.create_user(
+#             email="test@example.com",
+#         )
+
+#     def test_create_review(self):
+#         """Test creating Review instance"""
+#         fields = {"rating": 1, "commentary": "test comment"}
+#         review = create_review(self.user, self.product, **fields)
+
+#         self.assertEqual(review.user, self.user)
+#         self.assertEqual(review.product, self.product)
+#         for k, v in fields.items():
+#             self.assertEqual(getattr(review, k), v)

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Product, Property
+from .models import Category, Product, Property, Review
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -24,7 +24,10 @@ class PropertySerializer(serializers.ModelSerializer):
         )
 
         if property:
-            msg = f"Property with this Name ({attrs["name"]}) and Value ({attrs["value"]}) already exists!"
+            msg = (
+                f"Property with this Name ({attrs['name']}) "
+                f"and Value ({attrs['value']}) already exists!"
+            )
             raise serializers.ValidationError(msg)
 
         return attrs
@@ -43,8 +46,15 @@ class NoValidationPropSerializer(PropertySerializer):
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
-        fields = ["id", "name", "brand", "price", "image"]
-        read_only_fields = ["id", "image"]
+        fields = [
+            "id",
+            "name",
+            "brand",
+            "price",
+            "image",
+            "rating",
+        ]
+        read_only_fields = ["id", "image", "rating"]
 
 
 class ProductDetailSerializer(ProductSerializer):
@@ -59,6 +69,12 @@ class ProductDetailSerializer(ProductSerializer):
             "stock",
             "category",
             "properties",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ProductSerializer.Meta.read_only_fields + [
+            "created_at",
+            "updated_at",
         ]
 
     # Helper function to assign props to product
@@ -113,3 +129,18 @@ class ProductImageSerializer(serializers.ModelSerializer):
         fields = ["id", "image"]
         read_only_fields = ["id"]
         extra_kwargs = {"image": {"required": True}}
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Review
+        fields = [
+            "id",
+            "rating",
+            "commentary",
+            "user",
+            "product",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "user", "product", "created_at", "updated_at"]

@@ -1,7 +1,8 @@
 import os
 from uuid import uuid4
 from django.db import models
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
+from django.contrib.auth import get_user_model
 
 
 def generate_product_image_path(instance, filename):
@@ -65,11 +66,32 @@ class Product(models.Model):
         blank=True,
         null=True,
     )
+    rating = models.FloatField(  # TODO Make read only in admin panel!
+        blank=True,
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(5)],
+    )
     category = models.ForeignKey(to=Category, on_delete=models.CASCADE)
     properties = models.ManyToManyField(
         to=Property,
         blank=True,
     )
 
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
     def __str__(self):
         return self.name
+
+
+class Review(models.Model):
+    rating = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+    )
+    commentary = models.TextField()
+    user = models.ForeignKey(to=get_user_model(), on_delete=models.CASCADE)
+    product = models.ForeignKey(to=Product, on_delete=models.CASCADE)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+

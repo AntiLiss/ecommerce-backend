@@ -1,4 +1,5 @@
 from django.shortcuts import get_object_or_404
+from rest_framework import filters
 from rest_framework import viewsets
 from rest_framework import mixins
 from rest_framework import permissions
@@ -6,6 +7,13 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.response import Response
+from drf_spectacular.utils import (
+    extend_schema_view,
+    extend_schema,
+    OpenApiParameter,
+    OpenApiTypes,
+)
+from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import (
     CategorySerializer,
     ProductDetailSerializer,
@@ -44,11 +52,49 @@ class CategoryViewSet(BaseViewSet):
         return Response(data, status.HTTP_204_NO_CONTENT)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="category__in",
+                type=OpenApiTypes.STR,
+                description="Comma separated list of categories to filter by",
+            ),
+            OpenApiParameter(
+                "ordering",
+                OpenApiTypes.STR,
+                description="Comma separated list of fields to order by",
+                enum=["price", "rating"],
+            ),
+        ]
+    )
+)
 class ProductViewSet(BaseViewSet):
     """Manage products"""
 
     serializer_class = ProductDetailSerializer
     queryset = Product.objects.all().order_by("id")
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = {"category": ["in"]}
+    ordering_fields = ["price", "rating"]
+
+    # Manually implemented filtering, ordering features
+    # def get_queryset(self):
+    #     queryset = self.queryset
+
+    #     # Filter by category feature
+    #     category_ids = self.request.query_params.get("categories")
+    #     if category_ids:
+    #         ids = [int(id) for id in category_ids.split(",")]
+    #         queryset = queryset.filter(category__id__in=ids)
+
+    #     # Sort feature
+    #     fields_str = self.request.query_params.get("ordering")
+    #     if fields_str:
+    #         fields = fields_str.split(",")
+    #         queryset = queryset.order_by(*fields)
+
+    #     return queryset
 
     # Change serializer when "list" and "upload_image" actions
     def get_serializer_class(self):

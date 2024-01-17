@@ -291,6 +291,7 @@ class PrivateProductAPITests(TestCase):
         }
         res = self.client.patch(url, payload, format="json")
 
+        product.refresh_from_db()
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         product_serializer = ProductDetailSerializer(product)
         self.assertEqual(res.data, product_serializer.data)
@@ -311,6 +312,7 @@ class PrivateProductAPITests(TestCase):
         }
         res = self.client.patch(url, payload, format="json")
 
+        product.refresh_from_db()
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         product_serializer = ProductDetailSerializer(product)
         self.assertEqual(res.data, product_serializer.data)
@@ -341,15 +343,91 @@ class PrivateProductAPITests(TestCase):
     def test_clear_product_props(self):
         """Test removing product props (without deleting themselves)"""
         category = create_category()
-        prop_color = create_property(name="color", value="black")
         product = create_product(category=category)
+        prop_color = create_property(name="color", value="black")
         product.properties.add(prop_color)
 
         payload = {"properties": []}
         url = get_product_detail_url(product.id)
         res = self.client.patch(url, payload, format="json")
 
+        product.refresh_from_db()
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         product_serializer = ProductDetailSerializer(product)
         self.assertEqual(res.data, product_serializer.data)
         self.assertEqual(product.properties.count(), 0)
+
+    def test_filter_by_category(self):
+        """Test filtering products by category"""
+        c1 = create_category("c1")
+        c2 = create_category("c2")
+        c3 = create_category("c3")
+
+        p1 = create_product(c1)
+        p2 = create_product(c2)
+        p3 = create_product(c3)
+
+        p1_serializer = ProductSerializer(p1)
+        p2_serializer = ProductSerializer(p2)
+        p3_serializer = ProductSerializer(p3)
+
+        query_params = {"category__in": f"{c1.id},{c2.id}"}
+        res = self.client.get(PRODUCT_LIST_URL, query_params)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn(p1_serializer.data, res.data)
+        self.assertIn(p2_serializer.data, res.data)
+        # This one has other category so it shouldn't be in response
+        self.assertNotIn(p3_serializer.data, res.data)
+
+    def test_order_by_price(self):
+        """Test ordering products by price"""
+        c1 = create_category("c1")
+        c2 = create_category("c2")
+        create_product(c1, price=Decimal("100"))
+        create_product(c2, price=Decimal("500"))
+
+        query_params = {"ordering": "-price"}
+        res = self.client.get(PRODUCT_LIST_URL, query_params)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        products = Product.objects.all().order_by("-price")
+        serializer = ProductSerializer(products, many=True)
+        self.assertEqual(res.data, serializer.data)
+
+    def test_order_by_rating(self):
+        """Test ordering products by rating"""
+        c1 = create_category("c1")
+        c2 = create_category("c2")
+        create_product(c1, rating=1)
+        create_product(c2, rating=5)
+
+        query_params = {"ordering": "-rating"}
+        res = self.client.get(PRODUCT_LIST_URL, query_params)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        products = Product.objects.all().order_by("-rating")
+        serializer = ProductSerializer(products, many=True)
+        self.assertEqual(res.data, serializer.data)
+
+    def test_multiple_field_ordering(self):
+        """Test ordering by multiple fields together"""
+        c1 = create_category("c1")
+        c2 = create_category("c2")
+        c3 = create_category("c3")
+
+        create_product(c1, rating=3, price=100)
+        create_product(c2, rating=3, price=500)
+        create_product(c3, rating=1, price=1000)
+
+        query_params = {"ordering": "-price,-rating"}
+        res = self.client.get(PRODUCT_LIST_URL, query_params)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        products = Product.objects.all().order_by("-price", "-rating")
+        serializer = ProductSerializer(products, many=True)
+        self.assertEqual(res.data, serializer.data)
+
+    def test_pagination(self):
+        """Test paginating products"""
+        pass
