@@ -20,14 +20,14 @@ from .serializers import (
     ProductSerializer,
     ProductImageSerializer,
     PropertySerializer,
+    ReviewSerializer,
 )
-from .models import Category, Product, Property
+from .models import Category, Product, Property, Review
 
 
 class BaseViewSet(viewsets.ModelViewSet):
-    """Basic attributes for viewsets"""
+    """Basic attributes for category and products"""
 
-    permission_classes = []
     authentication_classes = [TokenAuthentication]
 
     # Permis only admins to create and edit
@@ -43,14 +43,6 @@ class CategoryViewSet(BaseViewSet):
     serializer_class = CategorySerializer
     queryset = Category.objects.all().order_by("id")
 
-    # Override deletion to return deleted item in response
-    def destroy(self, request, pk):
-        category = get_object_or_404(Category, pk=pk)
-        category_serializer = self.get_serializer(category)
-        data = category_serializer.data
-        category.delete()
-        return Response(data, status.HTTP_204_NO_CONTENT)
-
 
 @extend_schema_view(
     list=extend_schema(
@@ -58,13 +50,12 @@ class CategoryViewSet(BaseViewSet):
             OpenApiParameter(
                 name="category__in",
                 type=OpenApiTypes.STR,
-                description="Comma separated list of categories to filter by",
+                description="Comma separated list of category IDs to filter by",
             ),
             OpenApiParameter(
                 "ordering",
                 OpenApiTypes.STR,
-                description="Comma separated list of fields to order by",
-                enum=["price", "rating"],
+                description="Comma separated list of fields to order by: `price`, `rating`",
             ),
         ]
     )
@@ -117,14 +108,6 @@ class ProductViewSet(BaseViewSet):
         image_serializer.save()
         return Response(image_serializer.data, status.HTTP_200_OK)
 
-    # Override deletion to return deleted item in response
-    def destroy(self, request, pk):
-        product = get_object_or_404(Product, pk=pk)
-        product_serializer = self.get_serializer(product)
-        data = product_serializer.data
-        product.delete()
-        return Response(data, status.HTTP_204_NO_CONTENT)
-
 
 class PropertyViewSet(viewsets.ModelViewSet):
     """Manage product properties"""
@@ -134,10 +117,58 @@ class PropertyViewSet(viewsets.ModelViewSet):
     serializer_class = PropertySerializer
     queryset = Property.objects.all().order_by("id")
 
-    # Override deletion to return deleted item in response
-    def destroy(self, request, pk):
-        prop = get_object_or_404(Property, pk=pk)
-        prop_serializer = self.get_serializer(prop)
-        data = prop_serializer.data
-        prop.delete()
-        return Response(data, status.HTTP_204_NO_CONTENT)
+
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="product",
+                type=OpenApiTypes.STR,
+                description="Comma separated list of product IDs to filter by",
+            ),
+            OpenApiParameter(
+                name="user",
+                type=OpenApiTypes.STR,
+                description="Comma separated list of user IDs to filter by",
+            ),
+            OpenApiParameter(
+                "ordering",
+                OpenApiTypes.STR,
+                description="Comma separated list of fields to order by. Available fields: `created_at`, `rating`",
+            ),
+        ]
+    )
+)
+class ReviewViewSet(viewsets.ModelViewSet):
+    """Manage reviews"""
+
+    authentication_classes = [TokenAuthentication]
+    serializer_class = ReviewSerializer
+    queryset = Review.objects.all().order_by("id")
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ["product", "user"]
+    ordering_fields = ["created_at", "rating"]
+
+    # Permis only authenticated users to create and edit
+    def get_permissions(self):
+        if self.action not in ["list", "retrieve"]:
+            return [permissions.IsAuthenticated()]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        if self.action not in ["update", "partial_update", "destroy"]:
+            return queryset
+
+        # Allow admin to delete any review
+        if user.is_staff and self.action == "destroy":
+            return super().get_queryset()
+
+        # Allow regular user to edit only his own reviews
+        return self.queryset.filter(user=self.request.user)
+
+    # Set field "user" as "request.user" by default when creating review
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)

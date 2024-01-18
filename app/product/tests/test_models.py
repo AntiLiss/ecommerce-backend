@@ -1,6 +1,7 @@
 from unittest.mock import patch
 from decimal import Decimal
 from django.test import TestCase
+from django.db import IntegrityError
 from django.contrib.auth import get_user_model
 from product.models import (
     Category,
@@ -124,22 +125,28 @@ class PropertyModelTests(TestCase):
             create_property(name="FABRIC", value="COTTON")
 
 
-# class ReviewModelTests(TestCase):
-#     """Test Review model"""
+class ReviewModelTests(TestCase):
+    """Test Review model"""
 
-#     def setUp(self):
-#         category = create_category()
-#         self.product = create_product(category)
-#         self.user = get_user_model().objects.create_user(
-#             email="test@example.com",
-#         )
+    def setUp(self):
+        category = create_category()
+        self.product = create_product(category)
+        self.user = get_user_model().objects.create_user(
+            email="test@example.com",
+        )
 
-#     def test_create_review(self):
-#         """Test creating Review instance"""
-#         fields = {"rating": 1, "commentary": "test comment"}
-#         review = create_review(self.user, self.product, **fields)
+    def test_create_review(self):
+        """Test creating Review instance"""
+        fields = {"rating": 1, "commentary": "test comment"}
+        review = create_review(self.user, self.product, **fields)
 
-#         self.assertEqual(review.user, self.user)
-#         self.assertEqual(review.product, self.product)
-#         for k, v in fields.items():
-#             self.assertEqual(getattr(review, k), v)
+        self.assertEqual(review.user, self.user)
+        self.assertEqual(review.product, self.product)
+        for k, v in fields.items():
+            self.assertEqual(getattr(review, k), v)
+
+    def test_limit_user_review_per_product(self):
+        """Test user can leave only 1 review for the product"""
+        with self.assertRaises(IntegrityError):
+            create_review(self.user, self.product)
+            create_review(self.user, self.product)

@@ -1,6 +1,12 @@
 from django.contrib import admin
-from .models import Category, Product, Property
+from .models import Category, Product, Property, Review
+
+
+class ProductAdmin(admin.ModelAdmin):
+    readonly_fields = ("rating",)
+
 
 admin.site.register(Category)
-admin.site.register(Product)
+admin.site.register(Product, ProductAdmin)
 admin.site.register(Property)
+admin.site.register(Review)

@@ -40,7 +40,7 @@ class PrivatePropertyTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         props = Property.objects.all().order_by("id")
         prop_serializer = PropertySerializer(props, many=True)
-        self.assertEqual(res.data, prop_serializer.data)
+        self.assertEqual(res.data["results"], prop_serializer.data)
 
     def test_retrieve_prop(self):
         """Test retrieving specific property"""
@@ -111,5 +111,3 @@ class PrivatePropertyTests(TestCase):
         res = self.client.delete(url)
 
         self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
-        prop_serializer = PropertySerializer(prop)
-        self.assertEqual(res.data, prop_serializer.data)

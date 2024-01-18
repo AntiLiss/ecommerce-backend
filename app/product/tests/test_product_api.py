@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.core.files import File
 from rest_framework import status
 from rest_framework.test import APIClient
-from .test_models import create_category, create_property
+from .test_models import create_category, create_property, create_product
 from product.models import Product, Property
 from product.serializers import ProductSerializer, ProductDetailSerializer
 
@@ -23,18 +23,6 @@ def get_product_detail_url(product_id):
 def get_image_upload_url(product_id):
     """Get url to upload image to specific product"""
     return reverse("product:product-upload-image", args=[product_id])
-
-
-def create_product(category, **fields):
-    default_fields = {
-        "name": "testname",
-        "description": "some desc",
-        "brand": "test brand",
-        "price": Decimal("100.99"),
-        "stock": 100,
-    }
-    default_fields.update(**fields)
-    return Product.objects.create(category=category, **default_fields)
 
 
 class PublicProductAPITests(TestCase):
@@ -53,7 +41,7 @@ class PublicProductAPITests(TestCase):
         product_serializer = ProductSerializer(products, many=True)
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.data, product_serializer.data)
+        self.assertEqual(res.data["results"], product_serializer.data)
 
     def test_retrieve_product(self):
         """Test retrieving specific product"""
@@ -65,6 +53,81 @@ class PublicProductAPITests(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, product_serializer.data)
+
+    def test_filter_by_category(self):
+        """Test filtering products by category"""
+        c1 = create_category("c1")
+        c2 = create_category("c2")
+        c3 = create_category("c3")
+
+        p1 = create_product(c1)
+        p2 = create_product(c2)
+        p3 = create_product(c3)
+
+        p1_serializer = ProductSerializer(p1)
+        p2_serializer = ProductSerializer(p2)
+        p3_serializer = ProductSerializer(p3)
+
+        query_params = {"category__in": f"{c1.id},{c2.id}"}
+        res = self.client.get(PRODUCT_LIST_URL, query_params)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn(p1_serializer.data, res.data["results"])
+        self.assertIn(p2_serializer.data, res.data["results"])
+        # This one has other category so it shouldn't be in response
+        self.assertNotIn(p3_serializer.data, res.data["results"])
+
+    def test_order_by_price(self):
+        """Test ordering products by price"""
+        c1 = create_category("c1")
+        c2 = create_category("c2")
+        create_product(c1, price=Decimal("100"))
+        create_product(c2, price=Decimal("500"))
+
+        query_params = {"ordering": "-price"}
+        res = self.client.get(PRODUCT_LIST_URL, query_params)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        products = Product.objects.all().order_by("-price")
+        serializer = ProductSerializer(products, many=True)
+        self.assertEqual(res.data["results"], serializer.data)
+
+    def test_order_by_rating(self):
+        """Test ordering products by rating"""
+        c1 = create_category("c1")
+        c2 = create_category("c2")
+        create_product(c1, rating=1)
+        create_product(c2, rating=5)
+
+        query_params = {"ordering": "-rating"}
+        res = self.client.get(PRODUCT_LIST_URL, query_params)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        products = Product.objects.all().order_by("-rating")
+        serializer = ProductSerializer(products, many=True)
+        self.assertEqual(res.data["results"], serializer.data)
+
+    def test_multiple_field_ordering(self):
+        """Test ordering by multiple fields together"""
+        c1 = create_category("c1")
+        c2 = create_category("c2")
+        c3 = create_category("c3")
+
+        create_product(c1, rating=3, price=100)
+        create_product(c2, rating=3, price=500)
+        create_product(c3, rating=1, price=1000)
+
+        query_params = {"ordering": "-price,-rating"}
+        res = self.client.get(PRODUCT_LIST_URL, query_params)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        products = Product.objects.all().order_by("-price", "-rating")
+        serializer = ProductSerializer(products, many=True)
+        self.assertEqual(res.data["results"], serializer.data)
+
+    def test_pagination(self):
+        """Test paginating products"""
+        pass
 
     def test_no_admin_permission_error(self):
         """Test only admin can create or edit products"""
@@ -162,8 +225,6 @@ class PrivateProductAPITests(TestCase):
         res = self.client.delete(url)
 
         self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
-        product_serializer = ProductDetailSerializer(product)
-        self.assertEqual(res.data, product_serializer.data)
 
     def test_upload_product_image(self):
         """Test uploading image to existing product"""
@@ -356,78 +417,3 @@ class PrivateProductAPITests(TestCase):
         product_serializer = ProductDetailSerializer(product)
         self.assertEqual(res.data, product_serializer.data)
         self.assertEqual(product.properties.count(), 0)
-
-    def test_filter_by_category(self):
-        """Test filtering products by category"""
-        c1 = create_category("c1")
-        c2 = create_category("c2")
-        c3 = create_category("c3")
-
-        p1 = create_product(c1)
-        p2 = create_product(c2)
-        p3 = create_product(c3)
-
-        p1_serializer = ProductSerializer(p1)
-        p2_serializer = ProductSerializer(p2)
-        p3_serializer = ProductSerializer(p3)
-
-        query_params = {"category__in": f"{c1.id},{c2.id}"}
-        res = self.client.get(PRODUCT_LIST_URL, query_params)
-
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertIn(p1_serializer.data, res.data)
-        self.assertIn(p2_serializer.data, res.data)
-        # This one has other category so it shouldn't be in response
-        self.assertNotIn(p3_serializer.data, res.data)
-
-    def test_order_by_price(self):
-        """Test ordering products by price"""
-        c1 = create_category("c1")
-        c2 = create_category("c2")
-        create_product(c1, price=Decimal("100"))
-        create_product(c2, price=Decimal("500"))
-
-        query_params = {"ordering": "-price"}
-        res = self.client.get(PRODUCT_LIST_URL, query_params)
-
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        products = Product.objects.all().order_by("-price")
-        serializer = ProductSerializer(products, many=True)
-        self.assertEqual(res.data, serializer.data)
-
-    def test_order_by_rating(self):
-        """Test ordering products by rating"""
-        c1 = create_category("c1")
-        c2 = create_category("c2")
-        create_product(c1, rating=1)
-        create_product(c2, rating=5)
-
-        query_params = {"ordering": "-rating"}
-        res = self.client.get(PRODUCT_LIST_URL, query_params)
-
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        products = Product.objects.all().order_by("-rating")
-        serializer = ProductSerializer(products, many=True)
-        self.assertEqual(res.data, serializer.data)
-
-    def test_multiple_field_ordering(self):
-        """Test ordering by multiple fields together"""
-        c1 = create_category("c1")
-        c2 = create_category("c2")
-        c3 = create_category("c3")
-
-        create_product(c1, rating=3, price=100)
-        create_product(c2, rating=3, price=500)
-        create_product(c3, rating=1, price=1000)
-
-        query_params = {"ordering": "-price,-rating"}
-        res = self.client.get(PRODUCT_LIST_URL, query_params)
-
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        products = Product.objects.all().order_by("-price", "-rating")
-        serializer = ProductSerializer(products, many=True)
-        self.assertEqual(res.data, serializer.data)
-
-    def test_pagination(self):
-        """Test paginating products"""
-        pass

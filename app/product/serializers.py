@@ -143,4 +143,23 @@ class ReviewSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "user", "product", "created_at", "updated_at"]
+
+        read_only_fields = ["id", "user", "created_at", "updated_at"]
+
+    # Check for unique constraint violation before creation
+    def create(self, validated_data):
+        user_id = validated_data.get("user")
+        product_id = validated_data.get("product")
+
+        # Return error if the user already wrote review for the product
+        if Review.objects.filter(user=user_id, product=product_id):
+            msg = "You already wrote review for this product!"
+            raise serializers.ValidationError(msg)
+
+        return super().create(validated_data)
+
+    # Prevent updating field "product"
+    # TODO Indicate in api docs that "product" field is not available when PATCH and PUT
+    def update(self, instance, validated_data):
+        validated_data.pop("product", None)
+        return super().update(instance, validated_data)

@@ -66,7 +66,7 @@ class Product(models.Model):
         blank=True,
         null=True,
     )
-    rating = models.FloatField(  # TODO Make read only in admin panel!
+    rating = models.FloatField(
         blank=True,
         default=0,
         validators=[MinValueValidator(0), MaxValueValidator(5)],
@@ -88,10 +88,17 @@ class Review(models.Model):
     rating = models.IntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(5)],
     )
-    commentary = models.TextField()
+    commentary = models.TextField(blank=True)
     user = models.ForeignKey(to=get_user_model(), on_delete=models.CASCADE)
     product = models.ForeignKey(to=Product, on_delete=models.CASCADE)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        constraints = [
+            # Ensure user can leave only 1 review for the product
+            models.UniqueConstraint(
+                fields=["user", "product"], name="unique_user_product_review"
+            )
+        ]

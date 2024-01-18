@@ -1,6 +1,7 @@
 from django.dispatch import receiver
-from django.db.models.signals import m2m_changed
-from .models import Product, Property
+from django.db.models import Avg
+from django.db.models.signals import m2m_changed, post_save, post_delete
+from .models import Product, Property, Review
 
 
 # Prevent adding two props with the same name to product
@@ -25,3 +26,17 @@ def check_unique_properties(sender, instance, action, pk_set, **kwargs):
             # Check for name duplication of passed and existing prop
             if passed_prop_name_lower in product_props_lower:
                 raise ValueError(error_msg)
+
+
+# Update product rating whenever review for it saved or deleted
+@receiver(post_save, sender=Review)
+@receiver(post_delete, sender=Review)
+def update_product_rating(sender, instance, created, **kwargs):
+    product = instance.product
+    reviews = product.review_set.all()
+    average_rating_dict = reviews.aggregate(Avg("rating"))
+    average_rating = average_rating_dict["rating__avg"]
+
+    # If averate rating is None or 0 then set 0
+    product.rating = average_rating or 0
+    product.save()
