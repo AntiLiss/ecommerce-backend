@@ -75,6 +75,13 @@ class UserModelTests(TestCase):
 
         self.assertEqual(image_path, f"uploads/user/{sample_uuid}.jpg")
 
+    def test_create_user_with_address(self):
+        """Test creating user with address"""
+        address = create_address()
+        user = create_user(address=address)
+
+        self.assertEqual(user.address, address)
+
 
 class AddressModelTests(TestCase):
     """Test address model"""

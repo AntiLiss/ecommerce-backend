@@ -31,12 +31,12 @@ def check_unique_properties(sender, instance, action, pk_set, **kwargs):
 # Update product rating whenever review for it saved or deleted
 @receiver(post_save, sender=Review)
 @receiver(post_delete, sender=Review)
-def update_product_rating(sender, instance, created, **kwargs):
+def update_product_rating(sender, instance, **kwargs):
     product = instance.product
     reviews = product.review_set.all()
     average_rating_dict = reviews.aggregate(Avg("rating"))
     average_rating = average_rating_dict["rating__avg"]
 
-    # If averate rating is None or 0 then set 0
+    # If average rating is None or 0 then set 0
     product.rating = average_rating or 0
     product.save()
