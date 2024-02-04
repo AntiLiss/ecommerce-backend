@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from .models import User
+from .models import User, Address
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -42,3 +42,10 @@ class UserImageSerializer(serializers.ModelSerializer):
         fields = ["id", "profile_photo"]
         read_only_fields = ["id"]
         extra_kwargs = {"profile_photo": {"required": True}}
+
+
+class AddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Address
+        fields = ["id", "country", "city", "street", "house", "postal_code"]
+        read_only_fields = ["id"]

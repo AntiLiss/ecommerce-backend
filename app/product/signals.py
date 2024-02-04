@@ -28,6 +28,7 @@ def check_unique_properties(sender, instance, action, pk_set, **kwargs):
                 raise ValueError(error_msg)
 
 
+# TODO check does this work correctly when deleting review
 # Update product rating whenever review for it saved or deleted
 @receiver(post_save, sender=Review)
 @receiver(post_delete, sender=Review)

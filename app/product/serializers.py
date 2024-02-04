@@ -108,7 +108,7 @@ class ProductDetailSerializer(ProductSerializer):
 
         return product
 
-    # Modify update to update product with props
+    # Modify updation to update product with props
     def update(self, instance, validated_data):
         """Update product with props"""
         props = validated_data.pop("properties", None)

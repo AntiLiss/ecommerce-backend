@@ -1,3 +1,4 @@
+from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from rest_framework import filters
 from rest_framework import viewsets, views
@@ -14,7 +15,8 @@ from drf_spectacular.utils import (
     OpenApiParameter,
     OpenApiTypes,
 )
-from .serializers import UserSerializer, UserImageSerializer
+from .models import Address
+from .serializers import UserSerializer, UserImageSerializer, AddressSerializer
 
 
 @extend_schema_view(
@@ -28,7 +30,7 @@ from .serializers import UserSerializer, UserImageSerializer
         ]
     )
 )
-class UserViewSet(
+class UserListViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
@@ -67,3 +69,28 @@ class UserImageAPIView(views.APIView):
         image_serializer.is_valid(raise_exception=True)
         image_serializer.save()
         return Response(data=image_serializer.data, status=status.HTTP_200_OK)
+
+
+class AddressViewSet(
+    mixins.RetrieveModelMixin,
+    mixins.CreateModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Manage addresses"""
+
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [TokenAuthentication]
+    serializer_class = AddressSerializer
+
+    # Limit address to authenticated user
+    def get_queryset(self):
+        address = self.request.user.address
+        return Address.objects.filter(id=address.id)
+
+    def get_permissions(self):
+        # No auth required to create address
+        if self.action == "create":
+            return []
+        return super().get_permissions()

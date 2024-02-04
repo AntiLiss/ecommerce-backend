@@ -6,6 +6,7 @@ from django.contrib.auth.models import (
     BaseUserManager,
     PermissionsMixin,
 )
+from django.core.validators import MinValueValidator
 
 
 def generate_user_image_path(instance, filename):
@@ -19,7 +20,7 @@ class Address(models.Model):
     country = models.CharField(max_length=100)
     city = models.CharField(max_length=100)
     street = models.CharField(max_length=100)
-    house = models.IntegerField()
+    house = models.IntegerField(validators=[MinValueValidator(1)])
     postal_code = models.CharField(max_length=12)
 
 
@@ -68,7 +69,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     address = models.OneToOneField(
         to=Address,
-        on_delete=models.CASCADE,
+        on_delete=models.CASCADE,  # A little problem: when deleting address user is also gets deleted
         blank=True,
         null=True,
     )
