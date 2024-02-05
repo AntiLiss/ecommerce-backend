@@ -3,22 +3,17 @@ from decimal import Decimal
 from django.test import TestCase
 from django.db import IntegrityError
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from product.models import (
     Category,
     Product,
     generate_product_image_path,
-    Property,
     Review,
 )
 
 
 def create_category(name="sample category"):
     return Category.objects.create(name=name)
-
-
-def create_property(name="color", value="white"):
-    """Create Property instance"""
-    return Property.objects.create(name=name, value=value)
 
 
 def create_product(category, **fields):
@@ -74,55 +69,29 @@ class ProductModelTests(TestCase):
         self.assertEqual(image_path, f"uploads/product/{sample_uuid}.jpg")
 
     def test_no_product_prop_name_duplication(self):
-        """Test product can't have more than one prop with the same name"""
+        """Test product must have unique property names"""
         category = create_category()
-        product = create_product(category=category)
-        color_red = create_property("color", "red")
-        # Ensure prop name case doesn't matter
-        color_blue = create_property("COLOR", "blue")
 
         # Should raise error cuz product can't have
         # two props with the same name
-        with self.assertRaises(ValueError):
-            product.properties.add(color_red, color_blue)
+        with self.assertRaises(ValidationError):
+            create_product(
+                category=category,
+                properties={"Color": "red", "COLOR": "blue"},
+            )
 
-    # def test_rating_update_when_review_added(self):
-    #     """
-    #     Test product's rating is updated whenever review
-    #     for that created or edited
-    #     """
-    #     category = create_category()
-    #     product = create_product(category=category)
-
-    #     user = get_user_model().objects.create_user(email="test@example.com")
-    #     create_review(user, product, rating=3)
-
-    #     self.assertEqual(product.rating, 3)
-
-
-class PropertyModelTests(TestCase):
-    """Test Property model"""
-
-    def test_create_product_property(self):
-        """Test creation of Property model instance"""
-        fields = {
-            "name": "color",
-            "value": "red",
-        }
-        product_property = create_property(**fields)
-
-        self.assertEqual(
-            str(product_property),
-            f"{product_property.name} {product_property.value}",
-        )
-
-    def test_entry_duplication_error(self):
+    def test_rating_update_when_review_added(self):
         """
-        Test case-insensitive duplication of properties raises error
+        Test product's rating is updated whenever review
+        for that created or edited
         """
-        with self.assertRaises(ValueError):
-            create_property(name="Fabric", value="Cotton")
-            create_property(name="FABRIC", value="COTTON")
+        category = create_category()
+        product = create_product(category=category)
+
+        user = get_user_model().objects.create_user(email="test@example.com")
+        create_review(user, product, rating=3)
+
+        self.assertEqual(product.rating, 3)
 
 
 class ReviewModelTests(TestCase):

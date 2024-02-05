@@ -2,14 +2,8 @@ import os
 from uuid import uuid4
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
-
-
-def generate_product_image_path(instance, filename):
-    """Generate product image path with unique uuid filename"""
-    extension = os.path.splitext(filename)[1]
-    filename = f"{uuid4()}{extension}"
-    return os.path.join("uploads", "product", filename)
 
 
 class Category(models.Model):
@@ -29,26 +23,19 @@ class Category(models.Model):
         return self.name
 
 
-class Property(models.Model):
-    """Product property model"""
+def validate_unique_keys(value):
+    """Validate product prop keys uniqueness"""
+    keys = [k.lower() for k in value]
+    if len(keys) != len(set(keys)):
+        duplicating_keys = set([k for k in keys if keys.count(k) > 1])
+        raise ValidationError(f"Property key duplication: {duplicating_keys}")
 
-    name = models.CharField(max_length=100)
-    value = models.CharField(max_length=255)
 
-    # Ensure combination of fields are unique in case-insensitive
-    # manner before saving
-    def save(self, *args, **kwargs):
-        if Property.objects.filter(
-            name__iexact=self.name,
-            value__iexact=self.value,
-        ):
-            msg = f"Property with this Name ({self.name}) and Value ({self.value}) already exists!"
-            raise ValueError(msg)
-
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"{self.name} {self.value}"
+def generate_product_image_path(instance, filename):
+    """Generate product image path with unique uuid filename"""
+    extension = os.path.splitext(filename)[1]
+    filename = f"{uuid4()}{extension}"
+    return os.path.join("uploads", "product", filename)
 
 
 class Product(models.Model):
@@ -72,9 +59,10 @@ class Product(models.Model):
         validators=[MinValueValidator(0), MaxValueValidator(5)],
     )
     category = models.ForeignKey(to=Category, on_delete=models.CASCADE)
-    properties = models.ManyToManyField(
-        to=Property,
+    properties = models.JSONField(
         blank=True,
+        default=dict,
+        validators=[validate_unique_keys],
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -82,6 +70,12 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+
+    # Override save to validate fields before saving.
+    # Otherwise validation doesn't work when manually saving instances via ORM
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class Review(models.Model):

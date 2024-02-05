@@ -19,10 +19,9 @@ from .serializers import (
     ProductDetailSerializer,
     ProductSerializer,
     ProductImageSerializer,
-    PropertySerializer,
     ReviewSerializer,
 )
-from .models import Category, Product, Property, Review
+from .models import Category, Product, Review
 
 
 class BaseViewSet(viewsets.ModelViewSet):
@@ -107,15 +106,6 @@ class ProductViewSet(BaseViewSet):
         image_serializer.is_valid(raise_exception=True)
         image_serializer.save()
         return Response(image_serializer.data, status.HTTP_200_OK)
-
-
-class PropertyViewSet(viewsets.ModelViewSet):
-    """Manage product properties"""
-
-    permission_classes = [permissions.IsAdminUser]
-    authentication_classes = [TokenAuthentication]
-    serializer_class = PropertySerializer
-    queryset = Property.objects.all().order_by("id")
 
 
 @extend_schema_view(
