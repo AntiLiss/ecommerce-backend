@@ -67,9 +67,9 @@ class User(AbstractBaseUser, PermissionsMixin):
         blank=True,
         null=True,
     )
-    address = models.OneToOneField(
+    address = models.ForeignKey(
         to=Address,
-        on_delete=models.CASCADE,  # A little problem: when deleting address user is also gets deleted
+        on_delete=models.SET_NULL,
         blank=True,
         null=True,
     )

@@ -1,4 +1,3 @@
-from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from rest_framework import filters
 from rest_framework import viewsets, views
@@ -7,7 +6,6 @@ from rest_framework import mixins
 from rest_framework import permissions
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.decorators import action
 from rest_framework.authentication import TokenAuthentication
 from drf_spectacular.utils import (
     extend_schema_view,
@@ -15,8 +13,7 @@ from drf_spectacular.utils import (
     OpenApiParameter,
     OpenApiTypes,
 )
-from .models import Address
-from .serializers import UserSerializer, UserImageSerializer, AddressSerializer
+from .serializers import UserSerializer, UserImageSerializer
 
 
 @extend_schema_view(
@@ -43,8 +40,8 @@ class UserListViewSet(
     ordering_fields = ["created_at"]
 
 
-class UserRUDView(generics.RetrieveUpdateDestroyAPIView):
-    """Manage User RUD operations"""
+class ProfileRUDView(generics.RetrieveUpdateDestroyAPIView):
+    """Manage user profile RUD operations"""
 
     permission_classes = [permissions.IsAuthenticated]
     authentication_classes = [TokenAuthentication]
@@ -54,7 +51,7 @@ class UserRUDView(generics.RetrieveUpdateDestroyAPIView):
         return self.request.user
 
 
-class UserImageAPIView(views.APIView):
+class ProfileImageAPIView(views.APIView):
     """Manage User profile image uploading"""
 
     permission_classes = [permissions.IsAuthenticated]
@@ -69,28 +66,3 @@ class UserImageAPIView(views.APIView):
         image_serializer.is_valid(raise_exception=True)
         image_serializer.save()
         return Response(data=image_serializer.data, status=status.HTTP_200_OK)
-
-
-class AddressViewSet(
-    mixins.RetrieveModelMixin,
-    mixins.CreateModelMixin,
-    mixins.UpdateModelMixin,
-    mixins.DestroyModelMixin,
-    viewsets.GenericViewSet,
-):
-    """Manage addresses"""
-
-    permission_classes = [permissions.IsAuthenticated]
-    authentication_classes = [TokenAuthentication]
-    serializer_class = AddressSerializer
-
-    # Limit address to authenticated user
-    def get_queryset(self):
-        address = self.request.user.address
-        return Address.objects.filter(id=address.id)
-
-    def get_permissions(self):
-        # No auth required to create address
-        if self.action == "create":
-            return []
-        return super().get_permissions()
