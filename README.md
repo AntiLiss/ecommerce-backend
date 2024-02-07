@@ -1,2 +1,2 @@
-# techwear-backend
-RESTful API of Techwear e-commerce
+# ecommerce-backend
+RESTful API of e-commerce written in DRF
