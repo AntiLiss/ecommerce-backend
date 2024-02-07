@@ -13,7 +13,15 @@ from drf_spectacular.utils import (
     OpenApiParameter,
     OpenApiTypes,
 )
-from .serializers import UserSerializer, UserImageSerializer
+from .serializers import (
+    UserSerializer,
+    UserImageSerializer,
+    CartItemSerializer,
+    CartItemExpandedSerializer,
+    WishItemSerializer,
+    WishItemExpandedSerializer,
+)
+from .models import Cart, WishItem
 
 
 @extend_schema_view(
@@ -27,7 +35,7 @@ from .serializers import UserSerializer, UserImageSerializer
         ]
     )
 )
-class UserListViewSet(
+class UserListRetrieveViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
@@ -41,7 +49,7 @@ class UserListViewSet(
 
 
 class ProfileRUDView(generics.RetrieveUpdateDestroyAPIView):
-    """Manage user profile RUD operations"""
+    """Manage user profile retrieve, update, destroy operations"""
 
     permission_classes = [permissions.IsAuthenticated]
     authentication_classes = [TokenAuthentication]
@@ -66,3 +74,57 @@ class ProfileImageAPIView(views.APIView):
         image_serializer.is_valid(raise_exception=True)
         image_serializer.save()
         return Response(data=image_serializer.data, status=status.HTTP_200_OK)
+
+
+class CartItemViewSet(viewsets.ModelViewSet):
+    """Manage cart items"""
+
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [TokenAuthentication]
+    serializer_class = CartItemSerializer
+
+    # Limit cart items to user
+    def get_queryset(self):
+        cart = Cart.objects.get(user=self.request.user)
+        return cart.cartitem_set.all().order_by("id")
+
+    def get_serializer_class(self):
+        # Expand product data when list and retrieve actions
+        if self.action in ["list", "retrieve"]:
+            return CartItemExpandedSerializer
+        return super().get_serializer_class()
+
+    # Associate cart item with user's cart by default
+    def perform_create(self, serializer):
+        cart = Cart.objects.get(user=self.request.user)
+        serializer.save(cart=cart)
+
+
+class WishItemViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Manage whish items"""
+
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [TokenAuthentication]
+    serializer_class = WishItemSerializer
+
+    # Limit wish items to user
+    def get_queryset(self):
+        user = self.request.user
+        return user.wishitem_set.all().order_by("id")
+
+    def get_serializer_class(self):
+        # Expand product data when list and retrieve actions
+        if self.action in ["list", "retrieve"]:
+            return WishItemExpandedSerializer
+        return super().get_serializer_class()
+
+    # Associate the wish item with the user by default
+    def perform_create(self, serializer):
+        user = self.request.user
+        serializer.save(user=user)

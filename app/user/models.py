@@ -1,12 +1,14 @@
 import os
 from uuid import uuid4
 from django.db import models
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import (
     AbstractBaseUser,
     BaseUserManager,
     PermissionsMixin,
 )
 from django.core.validators import MinValueValidator
+from product.models import Product
 
 
 def generate_user_image_path(instance, filename):
@@ -82,3 +84,26 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+
+class Cart(models.Model):
+    user = models.OneToOneField(to=get_user_model(), on_delete=models.CASCADE)
+
+
+class CartItem(models.Model):
+    cart = models.ForeignKey(to=Cart, on_delete=models.CASCADE)
+    product = models.ForeignKey(to=Product, on_delete=models.CASCADE)
+    quantity = models.IntegerField(validators=[MinValueValidator(1)])
+
+
+class WishItem(models.Model):
+    user = models.ForeignKey(to=get_user_model(), on_delete=models.CASCADE)
+    product = models.ForeignKey(to=Product, on_delete=models.CASCADE)
+
+    class Meta:
+        constraints = [
+            # Ensure the user can wish the product only once
+            models.UniqueConstraint(
+                fields=["user", "product"], name="unique_user_product"
+            )
+        ]

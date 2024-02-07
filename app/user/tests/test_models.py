@@ -1,7 +1,9 @@
 from unittest.mock import patch
 from django.test import TestCase
+from django.db.utils import IntegrityError
 from django.contrib.auth import get_user_model
-from user.models import Address, generate_user_image_path
+from user.models import Address, generate_user_image_path, Cart, CartItem, WishItem
+from product.tests.test_models import create_category, create_product
 
 
 def create_user(email="test@example.com", password=None, **fields):
@@ -18,6 +20,18 @@ def create_address(**fields):
     }
     default_fields.update(**fields)
     return Address.objects.create(**default_fields)
+
+
+def create_cartitem(cart, product, quantity=1):
+    return CartItem.objects.create(
+        cart=cart,
+        product=product,
+        quantity=quantity,
+    )
+
+
+def create_wishitem(user, product):
+    return WishItem.objects.create(user=user, product=product)
 
 
 class UserModelTests(TestCase):
@@ -99,3 +113,71 @@ class AddressModelTests(TestCase):
 
         for k, v in fields.items():
             self.assertEqual(getattr(address, k), v)
+
+
+class CartModelTests(TestCase):
+    """Test Cart model"""
+
+    def test_create_cart_with_user(self):
+        """Test a cart for the new user is created"""
+        user = create_user()
+        cart_exists = Cart.objects.filter(user=user).exists()
+
+        self.assertTrue(cart_exists)
+
+
+class CartItemModelTests(TestCase):
+    """Test CartItem model"""
+
+    def setUp(self):
+        user = create_user()
+        self.cart = Cart.objects.get(user=user)
+        category = create_category()
+        self.prod = create_product(category)
+
+    def test_create_cartitem(self):
+        """Test creating cart item"""
+        cart_item = CartItem.objects.create(
+            cart=self.cart, product=self.prod, quantity=1
+        )
+
+        self.assertEqual(cart_item.cart, self.cart)
+        self.assertEqual(cart_item.product, self.prod)
+
+    # Merge same cart items by increasing quantity
+    def test_merge_same_cartitems(self):
+        """Test merging two same cartitems"""
+        first = create_cartitem(self.cart, self.prod, 1)
+        create_cartitem(self.cart, self.prod, 1)
+
+        first.refresh_from_db()
+        self.assertEqual(first.quantity, 2)
+        cartitem_count = CartItem.objects.filter(
+            cart=self.cart,
+            product=self.prod,
+        ).count()
+        self.assertEqual(cartitem_count, 1)
+
+
+class WishItemModelTests(TestCase):
+    """Test WishItem model"""
+
+    def test_create_withitem(self):
+        """Test creating wish item"""
+        user = create_user()
+        category = create_category()
+        prod = create_product(category)
+        wishitem = create_wishitem(user, prod)
+
+        self.assertEqual(wishitem.user, user)
+        self.assertEqual(wishitem.product, prod)
+
+    def test_wishitem_duplication_error(self):
+        """Test duplicating user and product fields raises error"""
+        user = create_user()
+        category = create_category()
+        prod = create_product(category)
+
+        with self.assertRaises(IntegrityError):
+            create_wishitem(user, prod)
+            create_wishitem(user, prod)

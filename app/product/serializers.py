@@ -38,22 +38,6 @@ class ProductDetailSerializer(ProductSerializer):
             "updated_at",
         ]
 
-    # Ensure no property name duplication
-    def validate(self, attrs):
-        props = attrs.get("properties")
-        if not props:
-            return attrs
-
-        keys = [k.lower() for k in props]
-
-        if len(keys) != len(set(keys)):
-            duplicating_keys = set([k for k in keys if keys.count(k) > 1])
-            raise serializers.ValidationError(
-                f"Property key duplication: {duplicating_keys}"
-            )
-
-        return attrs
-
 
 # Simplified one to return only product id and image in response
 class ProductImageSerializer(serializers.ModelSerializer):
