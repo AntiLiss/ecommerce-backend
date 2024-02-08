@@ -126,5 +126,4 @@ class WishItemViewSet(
 
     # Associate the wish item with the user by default
     def perform_create(self, serializer):
-        user = self.request.user
-        serializer.save(user=user)
+        serializer.save(user=self.request.user)
