@@ -116,14 +116,16 @@ class WishItemSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "user"]
 
     # Check for uniqueness constraint violation during creation
-    def create(self, validated_data):
-        with transaction.atomic():
-            try:
-                return super().create(validated_data)
-            # If the constraint violated return validation error
-            except IntegrityError:
-                msg = "You have already wished this product!"
-                raise serializers.ValidationError(msg)
+    def validate(self, attrs):
+        user = self.context["request"].user
+        product = attrs.get("product")
+
+        # If the constraint violated return validation error
+        if WishItem.objects.filter(user=user, product=product):
+            msg = "You have already wished this product!"
+            raise serializers.ValidationError(msg)
+
+        return attrs
 
 
 class WishItemExpandedSerializer(WishItemSerializer):
